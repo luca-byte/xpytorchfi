@@ -1,7 +1,3 @@
-Certamente. Ecco una bozza per il file `README.md` che puoi aggiungere al tuo progetto.
-
----
-
 # xPytorchFI: An Extended Fault Injection Library for PyTorch
 
 `xPytorchFI` is a Python library designed to facilitate flexible and reproducible fault injection experiments on PyTorch neural networks. It extends the principles of `PytorchFI` with a high-level API that simplifies the orchestration of complex experiments, allowing researchers and engineers to focus on their specific evaluation logic rather than on the boilerplate of fault management.
