@@ -50,7 +50,7 @@ class FIFramework:
                 batch_size,
                 input_shape,
                 use_cuda=use_cuda,
-                layer_types=layer_types,
+                layer_types=tuple(layer_types),
                 bits=8,
             )
         else:
@@ -59,7 +59,7 @@ class FIFramework:
                 batch_size,
                 input_shape,
                 use_cuda=use_cuda,
-                layer_types=layer_types,
+                layer_types=tuple(layer_types),
                 BER=ber,
             )
         self.pfi_model.print_pytorchfi_layer_summary()
@@ -69,10 +69,10 @@ class FIFramework:
         Injects a fault into the model based on the specified policy.
 
         Args:
-        policy (str): The fault injection policy to use ('bfw', 'neuron', 'ber').
+        policy (str): The fault injection policy to use ('sbfm', 'neuron', 'ber').
         fault (List[Dict]): A list containing a single dictionary with the fault parameters, structured according to the policy requirements.
         """
-        if policy == "bfw":
+        if policy == "sbfm":
             self.inject_bfw_fault(fault)
         elif policy == "neuron":
             self.inject_bf_neuron_fault(fault)
