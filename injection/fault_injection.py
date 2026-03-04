@@ -1,6 +1,5 @@
-from xpytorchfi import XFaultInjection
-from xpytorchfi import BitFlipWeights
-from xpytorchfi import XSingleBitFlipFI
+from xpytorchfi import XFaultInjection, XSingleBitFlipFI
+from bitflips import BitFlipWeights, BitFlipWeightsBER
 from neuron_tails import generate_error_list_neurons_tails
 from typing import List, Dict
 import logging
@@ -85,7 +84,7 @@ class FIFramework:
         )
         self.faulty_model.eval()
 
-    def bit_flip_err_neuron(self, fault: List[Dict]):
+    def inject_bf_neuron_fault(self, fault: List[Dict]):
         """
         Inject single-bit flip faults into neuron activations for a selected layer range.
 
@@ -130,7 +129,9 @@ class FIFramework:
             )
         )
 
-        assert isinstance(self.pfi_model, XSingleBitFlipFI), "Neuron FI requires FIFramework(..., neuron_fault_injection=True)"
+        assert isinstance(self.pfi_model, XSingleBitFlipFI), (
+            "Neuron FI requires FIFramework(..., neuron_fault_injection=True)"
+        )
 
         # Configure which bit position will be flipped during neuron injection.
         self.pfi_model.set_conv_max([bit_faulty_pos])
@@ -142,6 +143,61 @@ class FIFramework:
             dim2=random_h,
             dim3=random_w,
             function=self.pfi_model.single_bit_flip_across_batch_tensor,
+        )
+
+        self.faulty_model.eval()
+
+    def inject_ber_bfw_fault(self, fault_description, ber, trial, bitmask):
+        """
+        Injects bit error rate (BER) faults into the weights of the model.
+
+        This method creates a corrupted copy of the original model, injecting faults into weights
+        according to a fault description DataFrame. The injection can be customized via a user-defined
+        function passed in kwargs. For each layer, the function identifies the weights to corrupt
+        and applies the specified fault (e.g., bit flip) using the provided bitmask and BER parameters.
+
+        Args:
+            function (callable): Custom function to apply the fault injection.
+            fault_description (pd.DataFrame): DataFrame containing fault locations and parameters.
+            bitmask (int or array-like): Bitmask specifying which bits to flip.
+            ber (float): Bit error rate for the injection.
+            trial (int): Trial number for the injection.
+        """
+
+        bfw = BitFlipWeightsBER(save_stats=True)
+
+        self.faulty_model = self.pfi_model.declare_ber_weight_fault_injection(
+            function=bfw,
+            fault_description=fault_description,
+            ber=ber,
+            trial=trial,
+            bitmask=bitmask,
+        )
+
+        self.faulty_model.eval()
+
+    def ber_var_bit_flip_weight_inj(self, fault_description, ber, trial):
+        """
+        Injects bit error rate (BER) faults into the weights of the model with variable bitmask.
+
+        This method creates a corrupted copy of the original model, injecting faults into weights
+        according to a fault description DataFrame. The injection can be customized via a user-defined
+        function passed in kwargs. For each layer, the function identifies the weights to corrupt
+        and applies the specified fault (e.g., bit flip) using the BER parameters. The bitmask can vary for each fault.
+
+        Args:
+            function (callable): Custom function to apply the fault injection.
+            fault_description (pd.DataFrame): DataFrame containing fault locations and parameters.
+            ber (float): Bit error rate for the injection.
+            trial (int): Trial number for the injection.
+        """
+        bfw = BitFlipWeightsBER(save_stats=True)
+
+        self.faulty_model = self.pfi_model.declare_var_bit_ber_weight_fault_injection(
+            BitFlip=bfw,
+            fault_description=fault_description,
+            ber=ber,
+            trial=trial,
         )
 
         self.faulty_model.eval()
