@@ -4,6 +4,12 @@ xPytorchFI: A Fault Injection Framework for PyTorch
 
 __version__ = "0.1.0"
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 from .fault_injection import FIFramework
 from .manager import FaultIterator
 from .fault_generation import (

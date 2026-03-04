@@ -86,7 +86,7 @@ from xpytorchfi import ExperimentRunner
 # 1. Define a simple model and some dummy data
 model = nn.Sequential(nn.Conv2d(3, 8, 3), nn.ReLU(), nn.Flatten(), nn.Linear(8 * 30 * 30, 10))
 dummy_data = torch.randn(1, 3, 32, 32)
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 model.to(device)
 dummy_data = dummy_data.to(device)
 
@@ -94,7 +94,7 @@ dummy_data = dummy_data.to(device)
 # This can also be loaded from a YAML file
 experiment_config = {
     "output_dir": "./fi_results/my_first_experiment",
-    "policy": "sfbm", # Selects the fault generation policy
+    "policy": "sbfm", # Selects the fault generation policy
 
     "injection": {
         "input_shape": [3, 32, 32],
@@ -115,6 +115,7 @@ my_callback = MyExperimentCallback()
 runner = ExperimentRunner(
     model=model,
     data=dummy_data,
+    device=device
     config=experiment_config,
     callback=my_callback,
     inference_fn=my_inference_fn,
@@ -129,7 +130,7 @@ The `ExperimentRunner` is controlled by a single configuration dictionary (or YA
 | Key          | Type   | Description                                                                                                                            |
 | ------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `output_dir` | `str`  | **Required.** Path to the directory where the fault list, checkpoints, and final results will be stored.                               |
-| `policy`     | `str`  | **Required.** The fault generation policy to use. Supported values: `"sfbm"`, `"ber"`, `"neurons"`.             |
+| `policy`     | `str`  | **Required.** The fault generation policy to use. Supported values: `"sbfm"`, `"ber"`, `"neurons"`.             |
 | `injection`  | `dict` | **Required.** Configuration for the underlying fault injection engine. See sub-table below.                                            |
 | `faults`     | `dict` | **Required.** Configuration for generating the fault list, specific to the chosen `policy`. See sub-table below.                       |
 
@@ -146,4 +147,4 @@ The `ExperimentRunner` is controlled by a single configuration dictionary (or YA
 
 | Key        | Type    | Description                                                                                                                                                                                          |
 | ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `...`      |         | Parameters specific to the chosen `policy`. For example, for `policy: "sfbm"`, you can specify `layer`, `num_faults`, `msb_injection`, `lsb_injection`, and other statistical parameters. |
+| `...`      |         | Parameters specific to the chosen `policy`. For example, for `policy: "sbfm"`, you can specify `layer`, `num_faults`, `msb_injection`, `lsb_injection`, and other statistical parameters. |

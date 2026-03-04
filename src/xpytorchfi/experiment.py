@@ -1,6 +1,7 @@
 """
 High-level API for orchestrating fault injection experiments.
 """
+
 import os
 import logging
 from typing import Any, Dict, Callable, List, Union
@@ -9,19 +10,23 @@ import torch
 import torch.nn as nn
 import yaml
 from tqdm.auto import tqdm
+from copy import deepcopy
 
-from .fault_generation import generate_fault_list_sbfm, generate_fault_list_ber, generate_fault_neurons_tailing, 
+from .fault_generation import (
+    generate_fault_list_sbfm,
+    generate_fault_list_ber,
+    generate_fault_neurons_tailing,
+)
 from .fault_injection import FIFramework
 from .manager import FaultIterator
 
 logger = logging.getLogger("XPFI")
 
-POLICY_FUNCTIONS = {
-    "sfbm": generate_fault_list_sbfm,
+POLICY_FUNCTIONS: Dict[str, Callable] = {
+    "sbfm": generate_fault_list_sbfm,
     "ber": generate_fault_list_ber,
     "neurons": generate_fault_neurons_tailing,
 }
-
 
 
 class ExperimentCallback:
@@ -36,15 +41,18 @@ class ExperimentCallback:
         """Called before the golden run (fault-free execution)."""
         pass
 
-    def on_golden_run_end(self, model: nn.Module, output: Any) -> None:
+    def on_golden_run_end(self, model: nn.Module, output: Any) -> Dict:
         """
         Called after the golden run.
 
         Args:
             model: The fault-free model.
             output: The output of the `inference_fn` from the golden run.
+        Returns:
+            A dictionary of metrics to be saved for the golden run.
         """
         self.golden_output = output
+        return {}
 
     def on_fault_injection_start(self, faulty_model: nn.Module, fault: Dict) -> None:
         """Called after a fault has been injected, before the model is run."""
@@ -83,10 +91,10 @@ class ExperimentRunner:
         self,
         model: nn.Module,
         data: Any,
+        device: torch.device,
         config: Union[Dict, str],
         callback: ExperimentCallback,
         inference_fn: Callable[[nn.Module, Any], Any],
-        
     ):
         """
         Initializes the experiment runner.
@@ -99,7 +107,7 @@ class ExperimentRunner:
         """
         self.model = model
         self.data = data
-        self.config = config
+        self.device = device
         self.callback = callback
         self.inference_fn = inference_fn
 
@@ -108,15 +116,19 @@ class ExperimentRunner:
             with open(config, "r") as f:
                 self.config = yaml.safe_load(f)
                 self._resolve_classes()
+        else:
+            self.config = config
 
         # Set up device and working directory
         self.workdir = self.config["output_dir"]
         os.makedirs(self.workdir, exist_ok=True)
 
+        self._setup_file_logging()
+
         with open(os.path.join(self.workdir, "config.yaml"), "w") as f:
-            config = self.config.copy()
-            config = self._classes_to_names(config)
-            yaml.dump(config, f)
+            tmp_config = deepcopy(self.config)
+            tmp_config = self._classes_to_names(tmp_config)
+            yaml.dump(tmp_config, f)
 
         self.policy = self.config.get("policy")
 
@@ -137,6 +149,15 @@ class ExperimentRunner:
         )
         self.fault_iterator.load_checkpoint()
 
+    def _setup_file_logging(self):
+        """Adds a file handler to the logger to save logs to a file."""
+        log_file = os.path.join(self.workdir, "experiment.log")
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+        logging.getLogger("root").addHandler(file_handler)
+
     def _resolve_classes(self) -> None:
         types = self.config["injection"]["layer_types"]
         types = [getattr(torch.nn, t) for t in types]
@@ -151,8 +172,13 @@ class ExperimentRunner:
     def _generate_faults(self) -> None:
         """Generates the fault list based on the configuration."""
         fault_gen_config: Dict[str, Any] = self.config["faults"]
-        
+
         gen_func = POLICY_FUNCTIONS.get(self.policy)
+
+        if gen_func is None:
+            raise ValueError(
+                f"Unknown policy '{self.policy}'. Available policies: {list(POLICY_FUNCTIONS.keys())}"
+            )
 
         gen_func(
             path=self.workdir,
@@ -165,6 +191,9 @@ class ExperimentRunner:
         """
         Executes the full fault injection experiment.
         """
+        if self.fault_iterator.is_completed():
+            logger.info("All faults have already been processed. Skipping execution.")
+            return
         # 1. Golden Run
         logger.info("Starting Golden Run...")
         self.callback.on_golden_run_start(self.model)
@@ -177,7 +206,9 @@ class ExperimentRunner:
         total_faults = len(self.fault_iterator)
         logger.info(f"Starting fault injection loop for {total_faults} faults.")
 
-        for fault_record, idx in tqdm(self.fault_iterator.iter_faults(), total=total_faults):
+        for fault_record, idx in tqdm(
+            self.fault_iterator.iter_faults(), total=total_faults
+        ):
             logger.info(f"Processing fault {idx + 1}/{total_faults}...")
 
             # 2.1. Inject fault
@@ -192,10 +223,10 @@ class ExperimentRunner:
             metrics = self.callback.on_fault_injection_end(
                 faulty_model, faulty_output, fault_record[0]
             )
-            
+
             # Add fault index to metrics
             metrics["fault_index"] = idx
-            
+
             # Save metrics for this step
             step_result_path = os.path.join(self.workdir, f"result_{idx}.pt")
             torch.save(metrics, step_result_path)
@@ -203,10 +234,9 @@ class ExperimentRunner:
         # 3. Aggregate results
         logger.info("Fault injection loop complete. Aggregating results...")
         final_results_df = self.fault_iterator.collate_results()
-        
+
         output_path = os.path.join(self.workdir, "results.csv")
         final_results_df.to_csv(output_path, index=False)
-        
+
         self.callback.on_experiment_end(final_results_df)
         logger.info(f"Experiment finished. Aggregated results saved to {output_path}")
-

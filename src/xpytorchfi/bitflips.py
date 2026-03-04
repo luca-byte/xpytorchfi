@@ -37,13 +37,12 @@ class BitFlipWeights:
 
         # Convert the float to its 32-bit integer representation
         orig_data = data[location].item()
-        data_32bit = int(XSingleBitFlipFI.float_to_hex(data[location].item()), 16)
+        data_32bit = int(XSingleBitFlipFI._float_to_hex(data[location].item()), 16)
 
         # Apply the bitmask to flip the specified bit
         injmask = self.bitmasks[self.counter]
-        self.counter += 1
         corrupt_32bit = data_32bit ^ int(injmask)
-        corrupt_val = self.int_to_float(corrupt_32bit)
+        corrupt_val = XSingleBitFlipFI._int_to_float(corrupt_32bit)
 
         # Log the fault injection details
         self.log_msg = f"F_descriptor: Layer:{self.layers[self.counter]}, (K, C, H, W):{location}, BitMask:{injmask}, Ffree_Weight:{data_32bit}, Faulty_weight:{corrupt_32bit}"
@@ -64,6 +63,8 @@ class BitFlipWeights:
             }
             self.injected_faults.append(fsim_dict)
 
+        self.counter += 1
+
         return corrupt_val
 
 
@@ -71,6 +72,7 @@ class BitFlipWeightsBER:
     """
     Class to inject bit-flip faults into weights during model inference based on a specified bit error rate (BER).
     """
+
     def __init__(self, save_stats: bool = False):
         """Initializes the BitFlipWeightsBER class.
         Args:
@@ -86,9 +88,9 @@ class BitFlipWeightsBER:
     def __call__(self, data, location, injmask, ber, trial, error_list=None):
         # Inject the BFW
         orig_data = data[location].item()
-        data_32bit = int(self.float_to_hex(data[location].item()), 16)
+        data_32bit = int(XSingleBitFlipFI._float_to_hex(data[location].item()), 16)
         corrupt_32bit = data_32bit ^ int(injmask)
-        corrupt_val = self.int_to_float(corrupt_32bit)
+        corrupt_val = XSingleBitFlipFI._int_to_float(corrupt_32bit)
 
         # Log the fault injection details
         self.log_msg = f"F_descriptor: Layer:{self._layer}, (K, C, H, W):{location}, BitMask:{injmask}, Ffree_Weight:{data_32bit}, Faulty_weight:{corrupt_32bit}"

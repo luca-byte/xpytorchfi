@@ -14,6 +14,7 @@ class CheckpointState:
     """Stores the current fault index (next fault to execute)."""
 
     fault_idx: int = 0
+    completed: bool = False
 
 
 class FaultIterator:
@@ -73,7 +74,7 @@ class FaultIterator:
 
     def reset_checkpoint(self) -> None:
         """Reset checkpoint to the beginning (fault_idx = 0)."""
-        self.state = CheckpointState(fault_idx=0)
+        self.state = CheckpointState(fault_idx=0, completed=False)
         self.save_checkpoint()
 
     def advance(self, idx: Optional[int] = None) -> None:
@@ -119,11 +120,17 @@ class FaultIterator:
             # Advance only after successful consumer step.
             if auto_advance:
                 self.advance(idx)
+        self.state.completed = True
+        self.save_checkpoint()
 
     def __len__(self) -> int:
         if not hasattr(self, "fault_df"):
             return 0
         return len(self.fault_df)
+
+    def is_completed(self) -> bool:
+        """Check if all faults have been processed."""
+        return self.state.completed
 
     def collate_results(self) -> pd.DataFrame:
         """
@@ -136,6 +143,9 @@ class FaultIterator:
         all_results = []
 
         metrics = torch.load(os.path.join(self.workdir, "result_G.pt"))
+        os.remove(os.path.join(self.workdir, "result_G.pt"))
+        if not metrics: 
+            metrics = {}
         metrics["fault_index"] = "G"
         all_results.append(metrics)
 
@@ -143,8 +153,11 @@ class FaultIterator:
             result_path = os.path.join(self.workdir, f"result_{i}.pt")
             if os.path.exists(result_path):
                 metrics = torch.load(result_path)
+                if not metrics:
+                    metrics = {}
                 metrics["fault_index"] = i
                 all_results.append(metrics)
+                os.remove(result_path)
 
         if not all_results:
             return pd.DataFrame()
