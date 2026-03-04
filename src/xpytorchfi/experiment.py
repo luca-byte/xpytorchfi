@@ -107,13 +107,16 @@ class ExperimentRunner:
         if isinstance(config, str):
             with open(config, "r") as f:
                 self.config = yaml.safe_load(f)
+                self._resolve_classes()
 
         # Set up device and working directory
         self.workdir = self.config["output_dir"]
         os.makedirs(self.workdir, exist_ok=True)
 
         with open(os.path.join(self.workdir, "config.yaml"), "w") as f:
-            yaml.dump(self.config, f)
+            config = self.config.copy()
+            config = self._classes_to_names(config)
+            yaml.dump(config, f)
 
         self.policy = self.config.get("policy")
 
@@ -133,6 +136,17 @@ class ExperimentRunner:
             ckpt_file="ckpt.json",
         )
         self.fault_iterator.load_checkpoint()
+
+    def _resolve_classes(self) -> None:
+        types = self.config["injection"]["layer_types"]
+        types = [getattr(torch.nn, t) for t in types]
+        self.config["injection"]["layer_types"] = types
+
+    def _classes_to_names(self, config: Dict) -> Dict:
+        types = config["injection"]["layer_types"]
+        types = [t.__name__ for t in types]
+        config["injection"]["layer_types"] = types
+        return config
 
     def _generate_faults(self) -> None:
         """Generates the fault list based on the configuration."""
