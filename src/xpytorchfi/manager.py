@@ -6,18 +6,19 @@ from typing import Iterator, List, Dict, Tuple, Optional
 import pandas as pd
 
 
+import torch
+
+
 @dataclass
 class CheckpointState:
     """Stores the current fault index (next fault to execute)."""
+
     fault_idx: int = 0
 
 
-class FIManager:
+class FaultIterator:
     """
-    Minimal manager for:
-    - checkpoint persistence
-    - fault list loading
-    - resumable fault iteration
+    Manages fault list iteration, checkpointing, and result aggregation.
     """
 
     def __init__(
@@ -30,7 +31,7 @@ class FIManager:
         Initialize paths and internal state.
 
         Args:
-            workdir: Working directory used to store checkpoint and fault list.
+            workdir: Working directory used to store checkpoint, fault list, and results.
             ckpt_file: Checkpoint filename.
             fault_file: Fault list filename (CSV).
         """
@@ -103,7 +104,9 @@ class FIManager:
             - idx is the fault row index in the CSV
         """
         if not os.path.exists(self.fault_list_path):
-            raise FileNotFoundError(f"Fault list file not found: {self.fault_list_path}")
+            raise FileNotFoundError(
+                f"Fault list file not found: {self.fault_list_path}"
+            )
 
         # Load fault table each time to reflect external updates.
         self.fault_df = pd.read_csv(self.fault_list_path)
@@ -116,3 +119,34 @@ class FIManager:
             # Advance only after successful consumer step.
             if auto_advance:
                 self.advance(idx)
+
+    def __len__(self) -> int:
+        if not hasattr(self, "fault_df"):
+            return 0
+        return len(self.fault_df)
+
+    def collate_results(self) -> pd.DataFrame:
+        """
+        Scans the workdir for result files, loads them, and aggregates them
+        into a single DataFrame.
+
+        Returns:
+            A DataFrame containing all aggregated results.
+        """
+        all_results = []
+
+        metrics = torch.load(os.path.join(self.workdir, "result_G.pt"))
+        metrics["fault_index"] = "G"
+        all_results.append(metrics)
+
+        for i in range(len(self)):
+            result_path = os.path.join(self.workdir, f"result_{i}.pt")
+            if os.path.exists(result_path):
+                metrics = torch.load(result_path)
+                metrics["fault_index"] = i
+                all_results.append(metrics)
+
+        if not all_results:
+            return pd.DataFrame()
+
+        return pd.DataFrame(all_results)

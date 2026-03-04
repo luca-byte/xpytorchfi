@@ -5,7 +5,7 @@ xPytorchFI: A Fault Injection Framework for PyTorch
 __version__ = "0.1.0"
 
 from .fault_injection import FIFramework
-from .manager import FIManager
+from .manager import FaultIterator
 from .fault_generation import (
     generate_fault_list_sbfm,
     generate_fault_list_sbfm_fails,
@@ -14,10 +14,11 @@ from .fault_generation import (
 )
 from .bitflips import BitFlipWeights, BitFlipWeightsBER
 from .xpytorchfi import XFaultInjection, XSingleBitFlipFI
+from .experiment import ExperimentRunner, ExperimentCallback
 
 __all__ = [
     "FIFramework",
-    "FIManager",
+    "FaultIterator",
     "generate_fault_list_sbfm",
     "generate_fault_list_sbfm_fails",
     "generate_fault_neurons_tailing",
@@ -26,4 +27,6 @@ __all__ = [
     "BitFlipWeightsBER",
     "XFaultInjection",
     "XSingleBitFlipFI",
+    "ExperimentRunner",
+    "ExperimentCallback",
 ]

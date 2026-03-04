@@ -64,6 +64,23 @@ class FIFramework:
             )
         self.pfi_model.print_pytorchfi_layer_summary()
 
+    def inject_fault(self, policy: str, fault: List[Dict]):
+        """
+        Injects a fault into the model based on the specified policy.
+
+        Args:
+        policy (str): The fault injection policy to use ('bfw', 'neuron', 'ber').
+        fault (List[Dict]): A list containing a single dictionary with the fault parameters, structured according to the policy requirements.
+        """
+        if policy == "bfw":
+            self.inject_bfw_fault(fault)
+        elif policy == "neuron":
+            self.inject_bf_neuron_fault(fault)
+        elif policy == "ber":
+            self.inject_ber_bfw_fault(**fault[0])
+        else:
+            raise ValueError(f"Unsupported injection policy: {policy}")
+
     def inject_bfw_fault(self, fault: List[Dict]):
         """
         Injects a bit-flip fault into a specific weight of the model.
