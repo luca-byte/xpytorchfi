@@ -138,7 +138,7 @@ The `ExperimentRunner` is controlled by a single configuration dictionary (or YA
 | `layer_types` | `List[Module]` | A list of PyTorch layer types to consider for fault injection (e.g., `[nn.Conv2d, nn.Linear]`).          |
 | `...`         |                | Other parameters accepted by `xpytorchfi.fault_injection.FIFramework`.                                  |
 
-### `faults` (formerly `fault_generation_config`)
+### `faults`
 
 | Key        | Type    | Description                                                                                                                                                                                          |
 | ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
