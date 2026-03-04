@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xpytorchfi"
+version = "0.1.0"
+authors = [
+  { name="Luca De Paola", email="luca.depaola@studenti.polito.it" },
+  { name="Giuseppe Esposito", email="giuseppe.esposito@polito.it" },
+  { name="Juan David Guerrero Balaguera", email="juan.guerrero@polito.it" },
+]
+description = "A fault injection framework for PyTorch, extending pytorchfi."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "torch~=2.2.0",
+    "pandas",
+    "pytorchfi @ git+https://github.com/luca-byte/pytorchfi.git@master",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/luca-byte/xpytorchfi"
+"Bug Tracker" = "https://github.com/luca-byte/xpytorchfi/issues"
