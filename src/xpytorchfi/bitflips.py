@@ -1,5 +1,5 @@
 import logging
-from xpytorchfi import XSingleBitFlipFI
+from .xpytorchfi import XSingleBitFlipFI
 
 logger = logging.getLogger("XPFI")
 

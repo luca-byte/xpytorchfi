@@ -1,15 +1,23 @@
-from xpytorchfi import XFaultInjection, XSingleBitFlipFI
-from bitflips import BitFlipWeights, BitFlipWeightsBER
-from neuron_tails import generate_error_list_neurons_tails
-from typing import List, Dict
+from .xpytorchfi import XFaultInjection, XSingleBitFlipFI
+from .bitflips import BitFlipWeights, BitFlipWeightsBER
+from .neuron_tails import generate_error_list_neurons_tails
+from typing import List, Dict, Union
 import logging
 import torch
+import random
 
 logger = logging.getLogger("XPFI")
 
 
+def _pick_index(size: int, fixed1: int = None) -> int:
+    """Return a valid 0-based index, either fixed or randomly sampled."""
+    if fixed1 is not None:
+        return fixed1 - 1
+    return random.randint(0, size - 1)
+
+
 class FIFramework:
-    pfi_model: XFaultInjection | XSingleBitFlipFI
+    pfi_model: Union[XFaultInjection, XSingleBitFlipFI]
     faulty_model: torch.nn.Module
 
     def __init__(
@@ -20,7 +28,7 @@ class FIFramework:
         batch_size: int = 1,
         layer_types: List[torch.nn.Module] = [torch.nn.Conv2d],
         neuron_fault_injection: bool = False,
-        ber: int | bool = False,
+        ber: Union[int, bool] = False,
     ):
         """
         Initializes the fault injection framework.
@@ -198,6 +206,86 @@ class FIFramework:
             fault_description=fault_description,
             ber=ber,
             trial=trial,
+        )
+
+        self.faulty_model.eval()
+
+    def BER_weight_inj(
+        self,
+        BER: int,
+        layer: int = None,
+        kK: int = None,
+        kC: int = None,
+        kH: int = None,
+        kW: int = None,
+        inj_mask: int = None,
+        timeout: int = 1000,
+    ):
+        """
+        Inject multiple unique bit-flip faults into model weights.
+
+        This method randomly samples weight coordinates and bit positions until
+        `BER` unique faults are collected (or a timeout is reached), then applies
+        the injection through `declare_weight_fault_injection`.
+
+        Args:
+            BER (int): Number of unique bit-flip faults to generate.
+            layer (Optional[int]): Fixed 1-based layer index. If None, layer is sampled randomly.
+            kK (Optional[int]): Fixed 1-based kernel index. If None, sampled randomly.
+            kC (Optional[int]): Fixed 1-based channel index. If None, sampled randomly.
+            kH (Optional[int]): Fixed 1-based row index. If None, sampled randomly.
+            kW (Optional[int]): Fixed 1-based column index. If None, sampled randomly.
+            inj_mask (Optional[int]): Fixed 1-based bit position in [1, 32]. If None, sampled randomly.
+            timeout (int): Multiplier used to cap random attempts (`timeout * BER`).
+
+        Notes:
+            - Duplicate faults are discarded using a set.
+            - If fewer than `BER` unique faults are found before timeout, a warning is logged.
+        """
+
+        layers = []
+        kernels = []
+        channels = []
+        rows = []
+        cols = []
+
+        selected_faults: set[tuple] = set()
+        counter = 0
+        TIMEOUT = timeout * BER
+        while len(selected_faults) < BER and counter < TIMEOUT:
+            layer = _pick_index(self.pfi_model.get_total_layers(), fixed1=layer)
+            weight_shape = self.pfi_model.get_weights_size(layer)
+            kernel = _pick_index(weight_shape[0], fixed1=kK)
+            channel = _pick_index(weight_shape[1], fixed1=kC)
+            row = _pick_index(weight_shape[2], fixed1=kH)
+            col = _pick_index(weight_shape[3], fixed1=kW)
+            bitmask = _pick_index(32, fixed1=inj_mask)
+
+            fault_tuple = (layer, kernel, channel, row, col, bitmask)
+            if fault_tuple not in selected_faults:
+                layers.append(layer)
+                kernels.append(kernel)
+                channels.append(channel)
+                rows.append(row)
+                cols.append(col)
+                selected_faults.add(fault_tuple)
+
+            counter += 1
+
+        if len(selected_faults) < BER:
+            logger.warning(
+                f"Only {len(selected_faults)} unique faults could be generated after {counter} attempts. Consider increasing the TIMEOUT or adjusting the parameters."
+            )
+
+        bfw = BitFlipWeightsBER(save_stats=False)
+
+        self.faulty_model = self.pfi_model.declare_weight_fault_injection(
+            function=bfw,
+            layer_num=layers,
+            k=kernels,
+            dim1=channels,
+            dim2=rows,
+            dim3=cols,
         )
 
         self.faulty_model.eval()
