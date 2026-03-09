@@ -6,6 +6,8 @@ import os
 import logging
 from typing import Any, Dict, Callable, List, Union
 import pandas as pd
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 import yaml
@@ -27,6 +29,20 @@ POLICY_FUNCTIONS: Dict[str, Callable] = {
     "ber": generate_fault_list_ber,
     "neurons": generate_fault_neurons_tailing,
 }
+
+def setup_determinism(seed: int = 42) -> None:
+    """Sets up deterministic behavior for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.enabled = True
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+
+
 
 
 class ExperimentCallback:
@@ -95,6 +111,7 @@ class ExperimentRunner:
         config: Union[Dict, str],
         callback: ExperimentCallback,
         inference_fn: Callable[[nn.Module, Any], Any],
+        deterministic: bool = True,
     ):
         """
         Initializes the experiment runner.
@@ -110,6 +127,8 @@ class ExperimentRunner:
         self.device = device
         self.callback = callback
         self.inference_fn = inference_fn
+
+        setup_determinism() if deterministic else None
 
         # Load configuration from file if a path is provided
         if isinstance(config, str):
